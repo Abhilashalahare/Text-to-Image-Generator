@@ -11,9 +11,12 @@ const app = express()
 
 app.use(express.json())
 app.use(cors({
-    origin: "http://localhost:5173",
-    credentials: true // if you send cookies or tokens
-  }));
+  origin: [
+    "http://localhost:5173", // for local testing
+    "https://text-to-image-generator-1-04nn.onrender.com" // deployed frontend
+  ],
+  credentials: true,
+}));
 await connectDB()
 
 app.use('/api/user', userRouter)
