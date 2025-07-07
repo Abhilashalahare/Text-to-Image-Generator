@@ -2,7 +2,7 @@ import React, { useContext } from 'react'
 import { assets } from '../assets/assets'
 import { motion } from "motion/react"
 import { useNavigate } from 'react-router-dom'
-import { AppContext } from '../context/Appcontext'
+import { AppContext } from '../context/AppContext'
 
 const GenerateBtn = () => {
 
