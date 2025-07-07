@@ -1,184 +1,181 @@
 import userModel from "../models/userModel.js";
-import bcrypt from 'bcryptjs' //for encrypt pswrd
-import jwt from "jsonwebtoken"; //user authentication
-import razorpay from 'razorpay'
+import bcrypt from 'bcryptjs';
+import jwt from "jsonwebtoken";
+import Razorpay from 'razorpay';
 import transactionModel from "../models/transactionModel.js";
-import { SchemaTypeOptions } from "mongoose";
 
-const registerUser = async (req, res)=>{
-    try{ 
-        const {name, email, password} = req.body;
-        if(!name || !email || !password){ //if not available
-            return res.json({success: false, message: "missing details"})
-        }
-
-        const salt = await bcrypt.genSalt(10) //for moderate encryption
-        const hashedPassword = await bcrypt.hash(password, salt) 
-
-        const userData = {
-            name,
-            email,
-            password: hashedPassword
-        }
-        const newUSer = new userModel(userData)
-        const user = await newUSer.save();
-
-        const token = jwt.sign({id: user._id}, process.env.JWT_SECRET);
-
-        res.json({success: true, token, user:{name: user.name}})
-
-    }catch(err){
-          console.log(err);
-          res.json({success: false, message: err.message})
-          
+const registerUser = async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    if (!name || !email || !password) {
+      return res.json({ success: false, message: "Missing details" });
     }
-}
 
-const loginUser = async(req, res)=>{
-    try {
-        const {email, password} = req.body;
-        const user = await userModel.findOne({email})
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
-        if(!user){
-            return res.json({success:false, message: 'user does not exists'})
-        }
+    const userData = { name, email, password: hashedPassword };
+    const newUser = new userModel(userData);
+    const user = await newUser.save();
 
-        const isMatch = await bcrypt.compare(password, user.password)
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
 
-        if(isMatch){
+    res.json({ success: true, token, user: { name: user.name } });
+  } catch (err) {
+    console.log(err);
+    res.json({ success: false, message: err.message });
+  }
+};
 
-            const token = jwt.sign({id: user._id}, process.env.JWT_SECRET);
+const loginUser = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await userModel.findOne({ email });
 
-            res.json({success: true, token, user:{name: user.name}})
-    
-        }else{
-
-            return res.json({success:false, message:"invalid credentials"})
-        }
-
-    } catch (error) {
-         console.log(error);
-          res.json({success: false, message: error.message})
+    if (!user) {
+      return res.json({ success: false, message: 'User does not exist' });
     }
-}
 
+    const isMatch = await bcrypt.compare(password, user.password);
 
-const userCredits = async(req, res)=>{
-    try {
-        const {userId} = req.body
-
-        const user = await userModel.findById(userId)
-        res.json({success: true, credits: user.creditBalance, user:{name:user.name}})
-    } catch (error) {
-        console.log(error.message);
-        res.json({success: false, message: error.message})
+    if (isMatch) {
+      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
+      res.json({ success: true, token, user: { name: user.name } });
+    } else {
+      return res.json({ success: false, message: "Invalid credentials" });
     }
-}
+  } catch (error) {
+    console.log(error);
+    res.json({ success: false, message: error.message });
+  }
+};
 
-const razorpayInstance = new razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID,
-    key_secret: process.env.RAZORPAY_KEY_SECRET,
-})
+const userCredits = async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const user = await userModel.findById(userId);
 
-const paymentRazorpay = async (req, res)=>{
-    try {
-        const {userId, planId} = req.body
+    res.json({ success: true, credits: user.creditBalance, user: { name: user.name } });
+  } catch (error) {
+    console.log(error.message);
+    res.json({ success: false, message: error.message });
+  }
+};
 
-        const userData = await userModel.findById(userId)
+const paymentRazorpay = async (req, res) => {
+  try {
+    const { userId, planId } = req.body;
 
-        if(!userData || !planId){
-            return   res.json({success: false, message: 'Missing Details'}) 
-        }
+    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+      throw new Error("Razorpay credentials not set in environment");
+    }
 
-        let credits, plan, amount, date
+    const razorpayInstance = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
+    });
 
-        switch (planId) {
-            case 'Basic':
-                plan = 'Basic'
-                credits = 100
-                amount = 10
-                break;
-        
-            case 'Advanced':
-                plan = 'Advanced'
-                credits = 500
-                amount = 50
-                break;
-            
-            case 'Business':
-                plan = 'Business'
-                credits = 5000
-                amount = 250
-                break;
+    const userData = await userModel.findById(userId);
 
-            default:
-                return   res.json({success: false, message: 'plan not found'});
-        }
+    if (!userData || !planId) {
+      return res.json({ success: false, message: 'Missing Details' });
+    }
 
-        date = Date.now();
+    let credits, plan, amount;
+    const date = Date.now();
 
-        const transactionData = {
-            userId, plan, amount, credits, date
-        }
+    switch (planId) {
+      case 'Basic':
+        plan = 'Basic';
+        credits = 100;
+        amount = 10;
+        break;
+      case 'Advanced':
+        plan = 'Advanced';
+        credits = 500;
+        amount = 50;
+        break;
+      case 'Business':
+        plan = 'Business';
+        credits = 5000;
+        amount = 250;
+        break;
+      default:
+        return res.json({ success: false, message: 'Plan not found' });
+    }
 
-        const newTransaction = await transactionModel.create(transactionData)
-        
-        const options = {
-            amount : amount * 100, //to convert from decimal 1.55 - 155
-            currency : process.env.CURRENCY,
-            receipt : newTransaction._id,
+    const transactionData = {
+      userId,
+      plan,
+      amount,
+      credits,
+      date,
+    };
 
-        }
+    const newTransaction = await transactionModel.create(transactionData);
 
-        await razorpayInstance.orders.create(options, (error, order)=>{
-           if(error){
-            console.log(error);
-            return res.json({success: false, message: error })
-            
-           }
+    const options = {
+      amount: amount * 100, // Amount in paise
+      currency: process.env.CURRENCY || "INR",
+      receipt: newTransaction._id.toString(),
+    };
 
-           res.json({success: true, order})
-        })
-
-    } catch (error) {
+    razorpayInstance.orders.create(options, (error, order) => {
+      if (error) {
         console.log(error);
-        res.json({success: false, message: error.message})
-        
+        return res.json({ success: false, message: error });
+      }
+
+      res.json({ success: true, order });
+    });
+  } catch (error) {
+    console.log(error);
+    res.json({ success: false, message: error.message });
+  }
+};
+
+const verifyRazorpay = async (req, res) => {
+  try {
+    const { razorpay_order_id } = req.body;
+
+    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+      throw new Error("Razorpay credentials not set in environment");
     }
-}
 
-const verifyRazorpay = async (req, res)=>{
-    try {
-        const{razorpay_order_id} = req.body
+    const razorpayInstance = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
+    });
 
-        const orderInfo = await razorpayInstance.orders.fetch(razorpay_order_id)
+    const orderInfo = await razorpayInstance.orders.fetch(razorpay_order_id);
 
-        if(orderInfo.status === 'paid'){
-            const transactionData = await transactionModel.findById(orderInfo.receipt)
-          
-            if(transactionData.payment){
-                return res.json({success: false, message: 'Payment Failed'})
-            }
+    if (orderInfo.status === 'paid') {
+      const transactionData = await transactionModel.findById(orderInfo.receipt);
 
-            const userData = await userModel.findById(transactionData.userId)
+      if (transactionData.payment) {
+        return res.json({ success: false, message: 'Payment already processed' });
+      }
 
-            const creditBalance = userData.creditBalance + transactionData.credits
+      const userData = await userModel.findById(transactionData.userId);
+      const creditBalance = (userData.creditBalance || 0) + transactionData.credits;
 
-            await userModel.findByIdAndUpdate(userData._id, {creditBalance})
+      await userModel.findByIdAndUpdate(userData._id, { creditBalance });
+      await transactionModel.findByIdAndUpdate(transactionData._id, { payment: true });
 
-            await transactionModel.findByIdAndUpdate(transactionData._id, {payment:true})
-
-            res.json({ success: true, message: "Credits Added"})
-        }
-         else{
-            res.json({success: false, message: "Payment Failed"})
-     
+      res.json({ success: true, message: "Credits Added" });
+    } else {
+      res.json({ success: false, message: "Payment Failed" });
     }
-    } catch (error) {
-        console.log(error);
-        res.json({success: false, message: error.message})
-        
-    }
-}
+  } catch (error) {
+    console.log(error);
+    res.json({ success: false, message: error.message });
+  }
+};
 
-export { registerUser, loginUser, userCredits, paymentRazorpay, verifyRazorpay };
+export {
+  registerUser,
+  loginUser,
+  userCredits,
+  paymentRazorpay,
+  verifyRazorpay,
+};
