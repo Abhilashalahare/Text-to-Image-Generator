@@ -1,7 +1,7 @@
 import React, { use, useContext, useState } from 'react'
 import { assets } from '../assets/assets'
 import { motion } from "motion/react"
-import { AppContext } from '../context/Appcontext'
+import { AppContext } from '../context/AppContext'
 
 const Result = () => {
  
